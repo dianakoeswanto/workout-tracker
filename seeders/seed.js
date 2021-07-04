@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const db = require('../models');
+const { Workout } = require("../models");
 
 mongoose.connect(process.env.MONGODB_URI ||'mongodb://localhost/workout', {
   useNewUrlParser: true,
@@ -126,13 +127,48 @@ const workoutSeed = [
   },
 ];
 
-db.Workout.deleteMany({})
-  .then(() => db.Workout.collection.insertMany(workoutSeed))
-  .then((data) => {
-    console.log(data.result.n + ' records inserted!');
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+async function createWorkout(index) {
+	try {
+		let exercises = [];
+		let exerciseIds = [];
+
+		for (let i = 0; i < workoutSeed[index].exercises.length; i++) {
+			let exercise = await db.Exercise.create(workoutSeed[index].exercises[i]);
+			exercises.push(exercise);
+			exerciseIds.push(exercise._id);
+		}
+
+		let workout = new Workout({
+			day: workoutSeed[index].day,
+			exercises: exerciseIds
+		});
+
+		workout.totalDuration = workout.addTotalDuration(exercises);
+		workout.totalWeight = workout.addTotalWeight(exercises);
+    workout.totalDistance = workout.addTotalDistance(exercises);
+
+		await db.Workout.create(workout);
+
+	} catch (error) {
+		console.log(error);
+	}
+}
+
+async function seedDb() {
+	try {
+		await db.Workout.deleteMany();
+		await db.Exercise.deleteMany();
+		
+    for (var i = 0; i < workoutSeed.length; i++) {
+			await createWorkout(i);
+		}
+
+    console.log("DB SEEDED");
+		process.exit(0);
+	} catch (error) {
+		console.log(error);
+		process.exit(-1);
+	}
+}
+
+seedDb();
